@@ -1,4 +1,4 @@
-import React, {useEffect} from 'react'
+import React, {useEffect, useState} from 'react'
 import {StyleSheet, Button, Text, View} from 'react-native'
 import * as Notifications from 'expo-notifications'
 import * as Permissions from 'expo-permissions'
@@ -20,6 +20,8 @@ Notifications.setNotificationHandler({
 
 export default function App() {
 
+    const [pushToken, setPushToken] = useState()
+
     useEffect(() => {
         Permissions.getAsync(Permissions.NOTIFICATIONS).then(statusObj => {
             if (statusObj.status !== 'granted') {
@@ -27,7 +29,7 @@ export default function App() {
             }
             return statusObj
         }).then(statusObj => {
-            if (statusObj !== 'granted') {
+            if (statusObj.status !== 'granted') {
                 //rzucam błąd, żeby w razie nie udzlenia pozwolenia w tym kroku nie przeszło do kolejnego
                 //then
                 throw new Error('Nie udzielono pozwolenia')
@@ -40,10 +42,13 @@ export default function App() {
             //następowała komunikacja między serwerami
             //ten return zwróci promisa dlatego potrzebny będzie następny then blok
             return Notifications.getExpoPushTokenAsync()
-        }).then(data => {
+        }).then(response => {
             //w tym obiekcie znajduje się token który będzie odpowiadał za wysyłanie powiadomień
-            console.log(data)
+            console.log(response)
+            const token = response.data
+            setPushToken(token)
         }).catch((err) => {
+            console.log(err)
             //wywołuję blok catch po to, żeby uniknąć warningu o braku pewności czy user udzielił pozwolenia
             return null
         })
@@ -72,14 +77,30 @@ export default function App() {
 
     const handleNotification = () => {
         //ta metoda wyzwala lokalne powiadomienia
-        Notifications.scheduleNotificationAsync({
-            content: {
-                title: 'Tytuł powiadomienia',
-                body: 'Treść powiadomienia',
+        // Notifications.scheduleNotificationAsync({
+        //     content: {
+        //         title: 'Tytuł powiadomienia',
+        //         body: 'Treść powiadomienia',
+        //     },
+        //     trigger: {
+        //         seconds: 5,
+        //     }
+        // })
+        fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            //te trzy headery musze się znaleźć w requescie do serwerów expo aby wyzwolić powiadomienia
+            headers: {
+                'Accept': 'application/json',
+                'Accept-Encoding': 'gzip, deflate',
+                'Content-Type': 'application/json'
             },
-            trigger: {
-                seconds: 5,
-            }
+            body: JSON.stringify({
+                to: pushToken,
+                data: {extraData: 'Jakieś dane'},
+                title: 'powiadomienie wysłane przez apkę',
+                body: 'treść powiadomienia wysłanego przez apke'
+            })
+
         })
     }
     return (
